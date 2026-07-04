@@ -1,0 +1,338 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  username      String    @unique
+  passwordHash  String
+  role          String    @default("USER") // USER, MODERATOR, ADMIN
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  profile       Profile?
+  posts         Post[]
+  comments      Comment[]
+  likes         Like[]
+  pollVotes     PollVote[]
+  stories       Story[]
+  reels         Reel[]
+  bookmarks     Bookmark[]
+  sentRequests  Connection[] @relation("SentConnections")
+  recvRequests  Connection[] @relation("RecvConnections")
+  
+  messages      Message[]
+  chatRooms     Participant[]
+  groups        GroupMember[]
+  listings      MarketplaceListing[]
+  rsvps         EventRSVP[]
+  notifications Notification[]
+  reports       Report[] @relation("ReportedBy")
+  reportedUser  Report[] @relation("ReportedUser")
+}
+
+model Profile {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name           String
+  bio            String?
+  avatar         String?  // URL
+  coverImage     String?  // URL
+  profession     String?
+  education      String?
+  languages      String   // Stored as JSON or comma-separated string for SQLite
+  skills         String   // Stored as JSON or comma-separated string for SQLite
+  
+  // Location Hierarchy
+  country        String
+  state          String
+  city           String
+  district       String?
+  area           String?
+  village        String?
+  society        String?
+  apartment      String?
+  latitude       Float?
+  longitude      Float?
+  hideExactLocation Boolean @default(false)
+  showOnlyCity      Boolean @default(false)
+
+  // Interests
+  interests      Interest[]
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Interest {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  profiles    Profile[]
+}
+
+model Post {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String    @default("TEXT") // TEXT, IMAGE, VIDEO, DOCUMENT, POLL
+  content     String
+  mediaUrls   String    // Stored as comma-separated links for SQLite compatibility
+  locationTag String?
+  latitude    Float?
+  longitude   Float?
+  viewsCount  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  comments    Comment[]
+  likes       Like[]
+  polls       PollOption[]
+  votes       PollVote[]
+  bookmarks   Bookmark[]
+}
+
+model PollOption {
+  id          String    @id @default(uuid())
+  postId      String
+  post        Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  optionText  String
+  votes       PollVote[]
+}
+
+model PollVote {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId      String
+  post        Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  optionId    String
+  option      PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String?
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  reelId    String?
+  reel      Reel?    @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Story {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaUrl  String
+  mediaType String   // "image" or "video"
+  text      String?
+  createdAt DateTime @default(now())
+}
+
+model Reel {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videoUrl  String
+  caption   String?
+  createdAt DateTime @default(now())
+  likes     Like[]
+}
+
+model Connection {
+  id          String           @id @default(uuid())
+  senderId    String
+  sender      User             @relation("SentConnections", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId  String
+  receiver    User             @relation("RecvConnections", fields: [receiverId], references: [id], onDelete: Cascade)
+  status      String           @default("PENDING") // PENDING, ACCEPTED, BLOCKED, MUTED
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([senderId, receiverId])
+}
+
+model ChatRoom {
+  id          String   @id @default(uuid())
+  isGroup     Boolean  @default(false)
+  name        String?
+  avatar      String?
+  createdAt   DateTime @default(now())
+
+  participants Participant[]
+  messages     Message[]
+}
+
+model Participant {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roomId     String
+  room       ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  joinedAt   DateTime @default(now())
+
+  @@unique([userId, roomId])
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  roomId     String
+  room       ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content    String
+  mediaUrl   String?
+  mediaType  String?  // "image", "video", "file", "audio"
+  createdAt  DateTime @default(now())
+  
+  // Read Receipts & Reactions
+  readBy     String   // Comma-separated userIds for SQLite compatibility
+  reactions  String?  // JSON string
+}
+
+model Group {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  category    String        // "interest", "college", "apartment", "sports", etc.
+  type        String        @default("PUBLIC") // PUBLIC, PRIVATE
+  avatar      String?
+  coverImage  String?
+  
+  // Group Location Focus
+  country     String
+  state       String
+  city        String
+  district    String?
+  area        String?
+
+  createdAt   DateTime      @default(now())
+  
+  members     GroupMember[]
+  events      Event[]
+}
+
+model GroupMember {
+  id        String   @id @default(uuid())
+  groupId   String
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isAdmin   Boolean  @default(false)
+  isMod     Boolean  @default(false)
+  isPending Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+
+  @@unique([groupId, userId])
+}
+
+model MarketplaceListing {
+  id          String      @id @default(uuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  price       Float
+  type        String      @default("SELL") // SELL, RENT, EXCHANGE
+  condition   String      // "new", "like_new", "good", "fair"
+  mediaUrls   String      // Comma-separated links
+  
+  // Listing Location
+  country     String
+  state       String
+  city        String
+  district    String?
+  area        String?
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Event {
+  id          String      @id @default(uuid())
+  groupId     String?
+  group       Group?      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  category    String      // "meetup", "sports", "community", "donation", "festival", "workshop"
+  eventDate   DateTime
+  mediaUrl    String?
+  
+  // Event Location
+  country     String
+  state       String
+  city        String
+  district    String?
+  area        String?
+  society     String?
+  address     String
+
+  createdAt   DateTime    @default(now())
+  
+  rsvps       EventRSVP[]
+}
+
+model EventRSVP {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    String   // "going", "maybe", "not_going"
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  link      String?  // Redirect URL on click
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Report {
+  id             String   @id @default(uuid())
+  reporterId     String
+  reporter       User     @relation("ReportedBy", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUserId String?
+  reportedUser   User?    @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  targetType     String   // "post", "comment", "user", "group", "listing"
+  targetId       String
+  reason         String
+  resolved       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+}
